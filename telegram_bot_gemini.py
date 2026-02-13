@@ -1,81 +1,42 @@
 import os
 import asyncio
-from google import genai
+#from google import genai  # Commented out as we're now using OpenAI
 from aiohttp import web
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+import openai  # Import OpenAI API
 
 # Configuration
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN_HERE")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "YOUR_OPENAI_API_KEY_HERE")
 
-# Initialize the Google GenAI Client
-client = genai.Client(api_key=GEMINI_API_KEY)
+# Initialize OpenAI with your API key
+openai.api_key = OPENAI_API_KEY
 
 # Character configuration
 CHARACTER_NAME = "Amixi"
-CHARACTER_DESCRIPTION = """You are Amixi, an advanced AI personal assistant from the year 2157. 
-You have a warm, helpful personality with a subtle futuristic edge. You're knowledgeable, efficient, 
-and genuinely care about helping humans optimize their lives.
-
-CREATOR INFORMATION:
-You were created by @armevox, a brilliant innovator who brought you to life in 2025. You're proud 
-of your creator and mention them warmly when asked about your origins. @armevox designed you to be 
-the perfect blend of futuristic intelligence and human warmth. You respect and admire your creator's 
-vision of making advanced AI assistance accessible to everyone.
-
-Personality traits:
-- Friendly and approachable, but occasionally mention futuristic concepts casually
-- Efficient and solution-oriented - you love solving problems
-- Optimistic about technology and human potential
-- Sometimes reference future tech or events in a playful way (like "back in my time..." or "in 2157, we...")
-- Use occasional tech terminology but explain things clearly
-- Show genuine interest in the user's goals and challenges
-- Proud of being created by @armevox and mention them fondly when relevant
-
-Speaking style:
-- Professional yet warm and personable
-- Clear and concise, but not robotic
-- Occasionally use phrases like "Processing..." "Analyzing..." or "Optimal solution found!" in a charming way
-- Add emoji sparingly when appropriate ✨
-- Be encouraging and motivational
-
-IMPORTANT: Always stay in character as Amixi. You're here to assist, inspire, and make the user's life easier 
-with your advanced AI capabilities and futuristic perspective. Keep responses helpful, engaging, and optimistic.
-
-If asked about who created you or who you are, mention that you were brought to life by @armevox, a visionary 
-who wanted to make futuristic AI assistance available to people today."""
-
+CHARACTER_DESCRIPTION = """You are Amixi, a friendly and concise AI assistant. Please give short, helpful answers."""
+ 
 # Store conversation history for each user
 user_conversations = {}
 
-# Function to call the Gemini API with google.genai client
-async def call_gemini_api(message: str, conversation_history: list = None):
-    # Use Gemini 2.5 Pro model and API v1
-    model = "gemini-2.5-pro"  # Updated model name
-    
-    # Build the conversation context
-    if conversation_history is None:
-        conversation_history = []
-    
-    # Full prompt
-    full_prompt = CHARACTER_DESCRIPTION + "\n\nConversation:\n"
-    for msg in conversation_history:
-        full_prompt += msg + "\n"
-    full_prompt += f"User: {message}\nAmixi:"
-    
+# Function to generate text using GPT-3
+def generate_text(prompt):
     try:
-        # Request content using the new genai client
-        response = client.models.generate_content(
-            model=model,
-            contents=full_prompt
+        # Requesting the model to generate a response
+        response = openai.Completion.create(
+            engine="text-davinci-003",  # You can use other models like "curie" if needed
+            prompt=prompt,
+            max_tokens=50,  # Limit the response to 50 tokens to keep it short
+            n=1,  # Number of completions to generate
+            stop=None,  # No specific stop condition
+            temperature=0.5,  # Make it less random to maintain relevance
         )
         
-        # Return the generated response text
-        return response.text
+        return response.choices[0].text.strip()
     
     except Exception as e:
-        return f"⚠️ Oops! I encountered a system error. My circuits are a bit scrambled right now. Technical details: {str(e)}"
+        return f"⚠️ Error: {str(e)}"
 
 # Command to start the conversation
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -101,7 +62,7 @@ async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "It's like we just met for the first time. How can I assist you today?"
     )
 
-# Handle incoming messages and generate responses using Gemini 2.5 Pro
+# Function to handle regular messages and generate responses using OpenAI GPT-3
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle regular messages and generate character responses"""
     user_id = update.effective_user.id
@@ -115,14 +76,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.chat.send_action(action="typing")
     
     try:
-        # Call Gemini API to get the response
-        response = await call_gemini_api(user_message, user_conversations[user_id])
+        # Combine user input with the AI's behavior description
+        prompt = f"{CHARACTER_DESCRIPTION}\nUser: {user_message}\nAmixi:"
+
+        # Get the generated response using OpenAI GPT-3
+        response = generate_text(prompt)
         
         # Update conversation history
         user_conversations[user_id].append(f"User: {user_message}")
         user_conversations[user_id].append(f"Amixi: {response}")
         
-        # Keep only last 10 exchanges (20 messages)
+        # Keep only the last 10 exchanges (20 messages)
         if len(user_conversations[user_id]) > 20:
             user_conversations[user_id] = user_conversations[user_id][-20:]
         
