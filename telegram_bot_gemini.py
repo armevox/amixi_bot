@@ -53,15 +53,18 @@ user_conversations = {}
 def generate_text(prompt):
     try:
         # Requesting the model to generate a response using the new OpenAI API v1.0.0+
-        response = openai.Completion.create(
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",  # Use GPT-3.5 or GPT-4 depending on your choice
-            prompt=prompt,
+            messages=[
+                {"role": "system", "content": CHARACTER_DESCRIPTION},  # System message to define behavior
+                {"role": "user", "content": prompt}  # User message input
+            ],
             max_tokens=50,  # Limit the response to 50 tokens to keep it short
             temperature=0.5,  # Make it less random to maintain relevance
             n=1,  # Number of completions to generate
         )
         
-        return response['choices'][0]['text'].strip()
+        return response['choices'][0]['message']['content'].strip()
     
     except Exception as e:
         return f"⚠️ Error: {str(e)}"
