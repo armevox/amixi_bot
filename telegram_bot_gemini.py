@@ -68,7 +68,7 @@ async def call_gemini_api(message: str, conversation_history: list = None) -> st
     full_prompt += f"User: {message}\nAmixi:"
     
     # Gemini REST API endpoint - trying the correct endpoint
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-3-pro:generateContent?key={GEMINI_API_KEY}"
     
     payload = {
         "contents": [{
