@@ -1,13 +1,6 @@
-"""
-Telegram AI Character Bot - Amixi
-A bot that responds as a futuristic AI assistant using Google Gemini AI
-Created by @armevox
-Uses REST API directly for better compatibility
-"""
-
 import os
 import asyncio
-import aiohttp
+from google import genai
 from aiohttp import web
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
@@ -15,6 +8,9 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 # Configuration
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN_HERE")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE")
+
+# Initialize the Google GenAI Client
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 # Character configuration
 CHARACTER_NAME = "Amixi"
@@ -53,41 +49,35 @@ who wanted to make futuristic AI assistance available to people today."""
 # Store conversation history for each user
 user_conversations = {}
 
-
-async def call_gemini_api(message: str, conversation_history: list = None) -> str:
-    """Call Gemini API directly using REST"""
+# Function to call the Gemini API with google.genai client
+async def call_gemini_api(message: str, conversation_history: list = None):
+    # Use Gemini 3 Pro model
+    model = "gemini-3-pro"
     
     # Build the conversation context
     if conversation_history is None:
         conversation_history = []
     
-    # Create the full prompt
+    # Full prompt
     full_prompt = CHARACTER_DESCRIPTION + "\n\nConversation:\n"
     for msg in conversation_history:
         full_prompt += msg + "\n"
     full_prompt += f"User: {message}\nAmixi:"
     
-    # Gemini REST API endpoint - trying the correct endpoint
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-3-pro:generateContent?key={GEMINI_API_KEY}"
+    try:
+        # Request content using the new genai client
+        response = client.models.generate_content(
+            model=model,
+            contents=full_prompt
+        )
+        
+        # Return the generated response text
+        return response.text
     
-    payload = {
-        "contents": [{
-            "parts": [{
-                "text": full_prompt
-            }]
-        }]
-    }
-    
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload) as response:
-            if response.status == 200:
-                data = await response.json()
-                return data['candidates'][0]['content']['parts'][0]['text']
-            else:
-                error_text = await response.text()
-                raise Exception(f"API Error {response.status}: {error_text}")
+    except Exception as e:
+        return f"⚠️ Oops! I encountered a system error. My circuits are a bit scrambled right now. Technical details: {str(e)}"
 
-
+# Command to start the conversation
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle the /start command"""
     await update.message.reply_text(
@@ -100,7 +90,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"How can I help you today?"
     )
 
-
+# Command to reset conversation history
 async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle the /reset command to clear conversation history"""
     user_id = update.effective_user.id
@@ -111,7 +101,7 @@ async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "It's like we just met for the first time. How can I assist you today?"
     )
 
-
+# Handle incoming messages and generate responses using Gemini 3 Pro
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle regular messages and generate character responses"""
     user_id = update.effective_user.id
@@ -125,7 +115,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.chat.send_action(action="typing")
     
     try:
-        # Call Gemini API
+        # Call Gemini API to get the response
         response = await call_gemini_api(user_message, user_conversations[user_id])
         
         # Update conversation history
@@ -144,23 +134,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(error_msg)
         print(f"Error: {e}")
 
-
+# Main function to start the bot
 async def main():
     """Start the bot"""
     print(f"Starting {CHARACTER_NAME} bot...")
-    print("Testing Gemini API connection...")
     
-    # Test API connection
-    try:
-        test_response = await call_gemini_api("Say 'API connection successful!'")
-        print(f"✓ Gemini API working!")
-        print(f"✓ Test response: {test_response[:50]}...")
-    except Exception as e:
-        print(f"⚠️ Warning: Gemini API test failed: {e}")
-        print("Bot will still start, but may not work properly.")
-        print("Please verify your GEMINI_API_KEY is correct.")
-    
-    # Create a simple web server for Render
+    # Create a simple web server for health check
     async def health_check(request):
         return web.Response(text="Bot is running!")
     
@@ -207,7 +186,6 @@ async def main():
         await application.stop()
         await application.shutdown()
         await runner.cleanup()
-
 
 if __name__ == "__main__":
     # Fix for event loop issues on Render and other platforms
