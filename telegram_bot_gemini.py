@@ -2,11 +2,12 @@
 Telegram AI Character Bot - Amixi
 A bot that responds as a futuristic AI assistant using Google Gemini AI
 Created by @armevox
+Uses REST API directly for better compatibility
 """
 
 import os
 import asyncio
-import google.generativeai as genai
+import aiohttp
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
@@ -48,11 +49,42 @@ with your advanced AI capabilities and futuristic perspective. Keep responses he
 If asked about who created you or who you are, mention that you were brought to life by @armevox, a visionary 
 who wanted to make futuristic AI assistance available to people today."""
 
-# Initialize Gemini
-genai.configure(api_key=GEMINI_API_KEY)
+# Store conversation history for each user
+user_conversations = {}
 
-# Store chat sessions for each user
-user_chats = {}
+
+async def call_gemini_api(message: str, conversation_history: list = None) -> str:
+    """Call Gemini API directly using REST"""
+    
+    # Build the conversation context
+    if conversation_history is None:
+        conversation_history = []
+    
+    # Create the full prompt
+    full_prompt = CHARACTER_DESCRIPTION + "\n\nConversation:\n"
+    for msg in conversation_history:
+        full_prompt += msg + "\n"
+    full_prompt += f"User: {message}\nAmixi:"
+    
+    # Gemini REST API endpoint - trying the correct endpoint
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
+    
+    payload = {
+        "contents": [{
+            "parts": [{
+                "text": full_prompt
+            }]
+        }]
+    }
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json=payload) as response:
+            if response.status == 200:
+                data = await response.json()
+                return data['candidates'][0]['content']['parts'][0]['text']
+            else:
+                error_text = await response.text()
+                raise Exception(f"API Error {response.status}: {error_text}")
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -71,8 +103,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle the /reset command to clear conversation history"""
     user_id = update.effective_user.id
-    if user_id in user_chats:
-        del user_chats[user_id]
+    if user_id in user_conversations:
+        user_conversations[user_id] = []
     await update.message.reply_text(
         "🔄 Memory cleared! Starting fresh conversation.\n\n"
         "It's like we just met for the first time. How can I assist you today?"
@@ -84,47 +116,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_message = update.message.text
     
+    # Initialize conversation history for new users
+    if user_id not in user_conversations:
+        user_conversations[user_id] = []
+    
     # Send "typing" action
     await update.message.chat.send_action(action="typing")
     
     try:
-        # Initialize chat for new users
-        if user_id not in user_chats:
-            # Try different model names until one works
-            model_names = [
-                'gemini-1.5-flash-latest',
-                'gemini-1.5-flash', 
-                'gemini-pro',
-                'models/gemini-pro'
-            ]
-            
-            chat = None
-            for model_name in model_names:
-                try:
-                    print(f"Trying model: {model_name}")
-                    model = genai.GenerativeModel(model_name)
-                    # Test the model
-                    test = model.generate_content("Hi")
-                    # If it works, create a chat
-                    chat = model.start_chat(history=[])
-                    # Send character description
-                    chat.send_message(CHARACTER_DESCRIPTION)
-                    user_chats[user_id] = chat
-                    print(f"✓ Using model: {model_name}")
-                    break
-                except Exception as e:
-                    print(f"✗ Model {model_name} failed: {e}")
-                    continue
-            
-            if user_id not in user_chats:
-                raise Exception("Could not initialize any Gemini model. Please check your API key.")
+        # Call Gemini API
+        response = await call_gemini_api(user_message, user_conversations[user_id])
         
-        # Generate response
-        response = user_chats[user_id].send_message(user_message)
-        character_response = response.text
+        # Update conversation history
+        user_conversations[user_id].append(f"User: {user_message}")
+        user_conversations[user_id].append(f"Amixi: {response}")
+        
+        # Keep only last 10 exchanges (20 messages)
+        if len(user_conversations[user_id]) > 20:
+            user_conversations[user_id] = user_conversations[user_id][-20:]
         
         # Send response to user
-        await update.message.reply_text(character_response)
+        await update.message.reply_text(response)
         
     except Exception as e:
         error_msg = f"⚠️ Oops! I encountered a system error. My circuits are a bit scrambled right now.\n\nTechnical details: {str(e)}\n\nPlease try again in a moment!"
@@ -137,35 +149,15 @@ async def main():
     print(f"Starting {CHARACTER_NAME} bot...")
     print("Testing Gemini API connection...")
     
-    # Test which models are available
+    # Test API connection
     try:
-        print("\nTesting available models...")
-        model_names = [
-            'gemini-1.5-flash-latest',
-            'gemini-1.5-flash',
-            'gemini-pro',
-            'models/gemini-pro'
-        ]
-        
-        working_model = None
-        for model_name in model_names:
-            try:
-                test_model = genai.GenerativeModel(model_name)
-                test_response = test_model.generate_content("Hi")
-                print(f"✓ {model_name} - WORKS")
-                working_model = model_name
-                break
-            except Exception as e:
-                print(f"✗ {model_name} - Failed: {str(e)[:50]}")
-        
-        if working_model:
-            print(f"\n✓ Using model: {working_model}")
-        else:
-            print("\n⚠️ Warning: No working model found. Bot may not work properly.")
-            print("Please check your GEMINI_API_KEY")
-            
+        test_response = await call_gemini_api("Say 'API connection successful!'")
+        print(f"✓ Gemini API working!")
+        print(f"✓ Test response: {test_response[:50]}...")
     except Exception as e:
-        print(f"⚠️ Warning: Could not test Gemini API: {e}")
+        print(f"⚠️ Warning: Gemini API test failed: {e}")
+        print("Bot will still start, but may not work properly.")
+        print("Please verify your GEMINI_API_KEY is correct.")
     
     # Create the Application
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
