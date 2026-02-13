@@ -1,6 +1,6 @@
 import os
 import asyncio
-import openai  # OpenAI's API library
+import openai  # OpenAI's new API library
 from aiohttp import web
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
@@ -19,20 +19,21 @@ CHARACTER_DESCRIPTION = """You are Amixi, a friendly and concise AI assistant. P
 # Store conversation history for each user
 user_conversations = {}
 
-# Function to generate text using GPT-3.5
+# Function to generate text using GPT-3.5 or GPT-4 with the new API
 def generate_text(prompt):
     try:
-        # Requesting the model to generate a response (using GPT-3.5)
-        response = openai.Completion.create(
-            engine="gpt-3.5-turbo",  # Use GPT-3.5 instead of the deprecated Davinci model
-            prompt=prompt,
+        # Requesting the model to generate a response (using the new chat-based API)
+        response = openai.chat.Completion.create(
+            model="gpt-3.5-turbo",  # Use GPT-3.5 or GPT-4 depending on your choice
+            messages=[
+                {"role": "system", "content": CHARACTER_DESCRIPTION},  # Define system message
+                {"role": "user", "content": prompt}  # User message input
+            ],
             max_tokens=50,  # Limit the response to 50 tokens to keep it short
-            n=1,  # Number of completions to generate
-            stop=None,  # No specific stop condition
             temperature=0.5,  # Make it less random to maintain relevance
         )
         
-        return response.choices[0].text.strip()
+        return response['choices'][0]['message']['content'].strip()
     
     except Exception as e:
         return f"⚠️ Error: {str(e)}"
@@ -78,7 +79,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Combine user input with the AI's behavior description
         prompt = f"{CHARACTER_DESCRIPTION}\nUser: {user_message}\nAmixi:"
 
-        # Get the generated response using OpenAI GPT-3.5
+        # Get the generated response using OpenAI GPT-3.5 (with the new API interface)
         response = generate_text(prompt)
         
         # Update conversation history
