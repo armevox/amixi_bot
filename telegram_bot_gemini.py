@@ -1,10 +1,9 @@
-import os
+ import os
 import asyncio
-#from google import genai  # Commented out as we're now using OpenAI
+import openai  # OpenAI's API library
 from aiohttp import web
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-import openai  # Import OpenAI API
 
 # Configuration
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN_HERE")
@@ -16,16 +15,16 @@ openai.api_key = OPENAI_API_KEY
 # Character configuration
 CHARACTER_NAME = "Amixi"
 CHARACTER_DESCRIPTION = """You are Amixi, a friendly and concise AI assistant. Please give short, helpful answers."""
- 
+
 # Store conversation history for each user
 user_conversations = {}
 
-# Function to generate text using GPT-3
+# Function to generate text using GPT-3.5
 def generate_text(prompt):
     try:
-        # Requesting the model to generate a response
+        # Requesting the model to generate a response (using GPT-3.5)
         response = openai.Completion.create(
-            engine="text-davinci-003",  # You can use other models like "curie" if needed
+            engine="gpt-3.5-turbo",  # Use GPT-3.5 instead of the deprecated Davinci model
             prompt=prompt,
             max_tokens=50,  # Limit the response to 50 tokens to keep it short
             n=1,  # Number of completions to generate
@@ -62,7 +61,7 @@ async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "It's like we just met for the first time. How can I assist you today?"
     )
 
-# Function to handle regular messages and generate responses using OpenAI GPT-3
+# Function to handle regular messages and generate responses using OpenAI GPT-3.5
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle regular messages and generate character responses"""
     user_id = update.effective_user.id
@@ -79,7 +78,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Combine user input with the AI's behavior description
         prompt = f"{CHARACTER_DESCRIPTION}\nUser: {user_message}\nAmixi:"
 
-        # Get the generated response using OpenAI GPT-3
+        # Get the generated response using OpenAI GPT-3.5
         response = generate_text(prompt)
         
         # Update conversation history
