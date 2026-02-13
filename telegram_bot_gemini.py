@@ -88,29 +88,40 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.chat.send_action(action="typing")
     
     try:
-        # Create model for this request - using generate_content instead of chat
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        
-        # Get or create conversation history
+        # Initialize chat for new users
         if user_id not in user_chats:
-            user_chats[user_id] = []
-        
-        # Build the conversation context
-        conversation = CHARACTER_DESCRIPTION + "\n\nConversation history:\n"
-        for msg in user_chats[user_id]:
-            conversation += f"{msg}\n"
-        conversation += f"\nUser: {user_message}\nAmixi:"
+            # Try different model names until one works
+            model_names = [
+                'gemini-1.5-flash-latest',
+                'gemini-1.5-flash', 
+                'gemini-pro',
+                'models/gemini-pro'
+            ]
+            
+            chat = None
+            for model_name in model_names:
+                try:
+                    print(f"Trying model: {model_name}")
+                    model = genai.GenerativeModel(model_name)
+                    # Test the model
+                    test = model.generate_content("Hi")
+                    # If it works, create a chat
+                    chat = model.start_chat(history=[])
+                    # Send character description
+                    chat.send_message(CHARACTER_DESCRIPTION)
+                    user_chats[user_id] = chat
+                    print(f"✓ Using model: {model_name}")
+                    break
+                except Exception as e:
+                    print(f"✗ Model {model_name} failed: {e}")
+                    continue
+            
+            if user_id not in user_chats:
+                raise Exception("Could not initialize any Gemini model. Please check your API key.")
         
         # Generate response
-        response = model.generate_content(conversation)
+        response = user_chats[user_id].send_message(user_message)
         character_response = response.text
-        
-        # Update conversation history (keep last 10 exchanges)
-        user_chats[user_id].append(f"User: {user_message}")
-        user_chats[user_id].append(f"Amixi: {character_response}")
-        
-        if len(user_chats[user_id]) > 20:  # Keep last 10 exchanges (20 messages)
-            user_chats[user_id] = user_chats[user_id][-20:]
         
         # Send response to user
         await update.message.reply_text(character_response)
@@ -126,14 +137,35 @@ async def main():
     print(f"Starting {CHARACTER_NAME} bot...")
     print("Testing Gemini API connection...")
     
+    # Test which models are available
     try:
-        # Test API connection
-        test_model = genai.GenerativeModel('gemini-1.5-flash')
-        test_response = test_model.generate_content("Say 'API connection successful!'")
-        print(f"✓ Gemini API working: {test_response.text}")
+        print("\nTesting available models...")
+        model_names = [
+            'gemini-1.5-flash-latest',
+            'gemini-1.5-flash',
+            'gemini-pro',
+            'models/gemini-pro'
+        ]
+        
+        working_model = None
+        for model_name in model_names:
+            try:
+                test_model = genai.GenerativeModel(model_name)
+                test_response = test_model.generate_content("Hi")
+                print(f"✓ {model_name} - WORKS")
+                working_model = model_name
+                break
+            except Exception as e:
+                print(f"✗ {model_name} - Failed: {str(e)[:50]}")
+        
+        if working_model:
+            print(f"\n✓ Using model: {working_model}")
+        else:
+            print("\n⚠️ Warning: No working model found. Bot may not work properly.")
+            print("Please check your GEMINI_API_KEY")
+            
     except Exception as e:
-        print(f"⚠️  Warning: Could not connect to Gemini API: {e}")
-        print("Bot will still start, but may not work properly.")
+        print(f"⚠️ Warning: Could not test Gemini API: {e}")
     
     # Create the Application
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
@@ -146,7 +178,9 @@ async def main():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     # Start the bot
+    print("\n" + "="*50)
     print("Bot is running! Press Ctrl+C to stop.")
+    print("="*50 + "\n")
     
     # Initialize and run the application
     await application.initialize()
