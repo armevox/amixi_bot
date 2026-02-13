@@ -8,6 +8,7 @@ Uses REST API directly for better compatibility
 import os
 import asyncio
 import aiohttp
+from aiohttp import web
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
@@ -159,7 +160,24 @@ async def main():
         print("Bot will still start, but may not work properly.")
         print("Please verify your GEMINI_API_KEY is correct.")
     
-    # Create the Application
+    # Create a simple web server for Render
+    async def health_check(request):
+        return web.Response(text="Bot is running!")
+    
+    app = web.Application()
+    app.router.add_get('/', health_check)
+    app.router.add_get('/health', health_check)
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    
+    # Get port from environment variable (Render provides this)
+    port = int(os.getenv('PORT', 10000))
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    print(f"✓ Web server started on port {port}")
+    
+    # Create the Telegram Application
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     
     # Add command handlers
@@ -188,6 +206,7 @@ async def main():
         await application.updater.stop()
         await application.stop()
         await application.shutdown()
+        await runner.cleanup()
 
 
 if __name__ == "__main__":
