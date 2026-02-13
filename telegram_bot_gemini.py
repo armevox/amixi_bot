@@ -26,10 +26,9 @@ IMPORTANT: Always stay in character and respond as Jack Sparrow would. Keep resp
 
 # Initialize Gemini
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel(
-    model_name='gemini-1.5-flash',
-    system_instruction=CHARACTER_DESCRIPTION
-)
+
+# Use gemini-pro which is available in the free tier
+model = genai.GenerativeModel('gemini-pro')
 
 # Store chat sessions for each user
 user_chats = {}
@@ -60,6 +59,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Initialize chat session for new users
     if user_id not in user_chats:
         user_chats[user_id] = model.start_chat(history=[])
+        # Send the character description as the first message
+        initial_prompt = f"{CHARACTER_DESCRIPTION}\n\nNow respond to the user as this character."
+        user_chats[user_id].send_message(initial_prompt)
     
     # Send "typing" action
     await update.message.chat.send_action(action="typing")
