@@ -19,14 +19,14 @@ CHARACTER_DESCRIPTION = """You are Amixi, a friendly and concise AI assistant. P
 # Store conversation history for each user
 user_conversations = {}
 
-# Function to generate text using GPT-3.5 or GPT-4 with the new API
+# Function to generate text using GPT-3.5 or GPT-4 with the correct API method
 def generate_text(prompt):
     try:
-        # Requesting the model to generate a response (using the new chat-based API)
-        response = openai.chat.Completion.create(
+        # Requesting the model to generate a response (using the correct chat-based API)
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",  # Use GPT-3.5 or GPT-4 depending on your choice
             messages=[
-                {"role": "system", "content": CHARACTER_DESCRIPTION},  # Define system message
+                {"role": "system", "content": CHARACTER_DESCRIPTION},  # System message to define behavior
                 {"role": "user", "content": prompt}  # User message input
             ],
             max_tokens=50,  # Limit the response to 50 tokens to keep it short
@@ -79,7 +79,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Combine user input with the AI's behavior description
         prompt = f"{CHARACTER_DESCRIPTION}\nUser: {user_message}\nAmixi:"
 
-        # Get the generated response using OpenAI GPT-3.5 (with the new API interface)
+        # Get the generated response using OpenAI GPT-3.5 (with the correct API method)
         response = generate_text(prompt)
         
         # Update conversation history
