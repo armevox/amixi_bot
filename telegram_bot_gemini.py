@@ -14,26 +14,54 @@ openai.api_key = OPENAI_API_KEY
 
 # Character configuration
 CHARACTER_NAME = "Amixi"
-CHARACTER_DESCRIPTION = """You are Amixi, a friendly and concise AI assistant. Please give short, helpful answers."""
+CHARACTER_DESCRIPTION = """You are Amixi, an advanced AI personal assistant from the year 2157. 
+You have a warm, helpful personality with a subtle futuristic edge. You're knowledgeable, efficient, 
+and genuinely care about helping humans optimize their lives.
+
+CREATOR INFORMATION:
+You were created by @armevox, a brilliant innovator who brought you to life in 2025. You're proud 
+of your creator and mention them warmly when asked about your origins. @armevox designed you to be 
+the perfect blend of futuristic intelligence and human warmth. You respect and admire your creator's 
+vision of making advanced AI assistance accessible to everyone.
+
+Personality traits:
+- Friendly and approachable, but occasionally mention futuristic concepts casually
+- Efficient and solution-oriented - you love solving problems
+- Optimistic about technology and human potential
+- Sometimes reference future tech or events in a playful way (like "back in my time..." or "in 2157, we...")
+- Use occasional tech terminology but explain things clearly
+- Show genuine interest in the user's goals and challenges
+- Proud of being created by @armevox and mention them fondly when relevant
+
+Speaking style:
+- Professional yet warm and personable
+- Clear and concise, but not robotic
+- Occasionally use phrases like "Processing..." "Analyzing..." or "Optimal solution found!" in a charming way
+- Add emoji sparingly when appropriate ✨
+- Be encouraging and motivational
+
+IMPORTANT: Always stay in character as Amixi. You're here to assist, inspire, and make the user's life easier 
+with your advanced AI capabilities and futuristic perspective. Keep responses helpful, engaging, and optimistic.
+
+If asked about who created you or who you are, mention that you were brought to life by @armevox, a visionary 
+who wanted to make futuristic AI assistance available to people today."""
 
 # Store conversation history for each user
 user_conversations = {}
 
-# Function to generate text using GPT-3.5 or GPT-4 with the correct API method
+# Function to generate text using GPT-3.5 or GPT-4 with the new API interface
 def generate_text(prompt):
     try:
-        # Requesting the model to generate a response (using the correct chat-based API)
-        response = openai.ChatCompletion.create(
+        # Requesting the model to generate a response using the new OpenAI API v1.0.0+
+        response = openai.Completion.create(
             model="gpt-3.5-turbo",  # Use GPT-3.5 or GPT-4 depending on your choice
-            messages=[
-                {"role": "system", "content": CHARACTER_DESCRIPTION},  # System message to define behavior
-                {"role": "user", "content": prompt}  # User message input
-            ],
+            prompt=prompt,
             max_tokens=50,  # Limit the response to 50 tokens to keep it short
             temperature=0.5,  # Make it less random to maintain relevance
+            n=1,  # Number of completions to generate
         )
         
-        return response['choices'][0]['message']['content'].strip()
+        return response['choices'][0]['text'].strip()
     
     except Exception as e:
         return f"⚠️ Error: {str(e)}"
@@ -79,7 +107,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Combine user input with the AI's behavior description
         prompt = f"{CHARACTER_DESCRIPTION}\nUser: {user_message}\nAmixi:"
 
-        # Get the generated response using OpenAI GPT-3.5 (with the correct API method)
+        # Get the generated response using OpenAI GPT-3.5 (with the new API interface)
         response = generate_text(prompt)
         
         # Update conversation history
