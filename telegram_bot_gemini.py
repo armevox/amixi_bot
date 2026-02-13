@@ -49,22 +49,19 @@ who wanted to make futuristic AI assistance available to people today."""
 # Store conversation history for each user
 user_conversations = {}
 
-# Function to generate text using GPT-3.5 or GPT-4 with the new API interface
+# Function to generate text using GPT-3.5 or GPT-4 with the new API structure
 def generate_text(prompt):
     try:
-        # Requesting the model to generate a response using the new OpenAI API v1.0.0+
-        response = openai.ChatCompletion.create(
+        # Requesting the model to generate a response using the new OpenAI API v1.0.0+ interface
+        response = openai.completions.create(
             model="gpt-3.5-turbo",  # Use GPT-3.5 or GPT-4 depending on your choice
-            messages=[
-                {"role": "system", "content": CHARACTER_DESCRIPTION},  # System message to define behavior
-                {"role": "user", "content": prompt}  # User message input
-            ],
+            prompt=prompt,
             max_tokens=50,  # Limit the response to 50 tokens to keep it short
             temperature=0.5,  # Make it less random to maintain relevance
             n=1,  # Number of completions to generate
         )
         
-        return response['choices'][0]['message']['content'].strip()
+        return response['choices'][0]['text'].strip()
     
     except Exception as e:
         return f"⚠️ Error: {str(e)}"
@@ -110,7 +107,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Combine user input with the AI's behavior description
         prompt = f"{CHARACTER_DESCRIPTION}\nUser: {user_message}\nAmixi:"
 
-        # Get the generated response using OpenAI GPT-3.5 (with the new API interface)
+        # Get the generated response using OpenAI GPT-3.5 (with the new API structure)
         response = generate_text(prompt)
         
         # Update conversation history
@@ -192,4 +189,4 @@ if __name__ == "__main__":
             asyncio.set_event_loop(loop)
             loop.run_until_complete(main())
         else:
-            raise
+            raise 
