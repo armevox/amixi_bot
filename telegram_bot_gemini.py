@@ -51,8 +51,8 @@ user_conversations = {}
 
 # Function to call the Gemini API with google.genai client
 async def call_gemini_api(message: str, conversation_history: list = None):
-    # Use Gemini 3 Pro model
-    model = "gemini-3-pro"
+    # Use Gemini 2.5 Pro model and API v1
+    model = "gemini-2.5-pro"  # Updated model name
     
     # Build the conversation context
     if conversation_history is None:
@@ -101,7 +101,7 @@ async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "It's like we just met for the first time. How can I assist you today?"
     )
 
-# Handle incoming messages and generate responses using Gemini 3 Pro
+# Handle incoming messages and generate responses using Gemini 2.5 Pro
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle regular messages and generate character responses"""
     user_id = update.effective_user.id
