@@ -46,7 +46,7 @@ who wanted to make futuristic AI assistance available to people today."""
 # Store conversation history for each user
 user_conversations = {}
 
-# Function to call the Gemini API using v1 REST API directly
+# Function to call the Gemini API using v1beta REST API directly
 async def call_gemini_api(message: str, conversation_history: list = None):
     # Build the conversation context
     if conversation_history is None:
@@ -58,7 +58,7 @@ async def call_gemini_api(message: str, conversation_history: list = None):
         full_prompt += msg + "\n"
     full_prompt += f"User: {message}\nAmixi:"
     
-    # Try different model names with v1beta API (has better model support)
+    # Try different model names with v1beta API
     models_to_try = [
         "gemini-1.5-flash-latest",
         "gemini-1.5-flash",
@@ -75,26 +75,39 @@ async def call_gemini_api(message: str, conversation_history: list = None):
         }]
     }
     
+    last_error = None
+    
     # Try each model until one works
     for model in models_to_try:
         try:
-            # Using v1beta instead of v1
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
+            
+            print(f"Trying model: {model}")
             
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, json=payload) as response:
+                    response_text = await response.text()
+                    print(f"  Status: {response.status}")
+                    
                     if response.status == 200:
                         data = await response.json()
+                        print(f"  ✓ SUCCESS with {model}")
                         return data['candidates'][0]['content']['parts'][0]['text']
-                    elif response.status == 404:
-                        # Model not found, try next one
-                        continue
-        except Exception:
-            # Try next model
+                    else:
+                        print(f"  ✗ Failed: {response_text[:200]}")
+                        last_error = f"HTTP {response.status}: {response_text[:200]}"
+                        if response.status == 404:
+                            continue  # Try next model
+                        
+        except Exception as e:
+            print(f"  ✗ Exception: {str(e)[:200]}")
+            last_error = str(e)
             continue
     
-    # If all models failed
-    return "⚠️ Could not connect to any Gemini model. Please check your API key."
+    # If all models failed, return detailed error
+    error_msg = f"⚠️ Could not connect to any Gemini model.\n\nLast error: {last_error}\n\nPlease check:\n1. API key is correct\n2. API key has Gemini API enabled\n3. Check Render logs for details"
+    print(f"\n❌ All models failed. Last error: {last_error}\n")
+    return error_msg
 
 # Command to start the conversation
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -157,13 +170,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def main():
     """Start the bot"""
     print(f"Starting {CHARACTER_NAME} bot...")
-    print("Testing Gemini API v1 connection...")
+    print(f"API Key (first 10 chars): {GEMINI_API_KEY[:10]}...")
+    print("Testing Gemini API connection...")
     
     # Test API connection
     try:
-        test_response = await call_gemini_api("Say 'API connection successful!'")
-        print(f"✓ Gemini API v1 working!")
-        print(f"✓ Test response: {test_response[:50]}...")
+        test_response = await call_gemini_api("Say 'Hello'")
+        if "Could not connect" not in test_response:
+            print(f"✓ Gemini API working!")
+            print(f"✓ Test response: {test_response[:50]}...")
+        else:
+            print(f"⚠️ API test returned error: {test_response}")
     except Exception as e:
         print(f"⚠️ Warning: Gemini API test failed: {e}")
     
@@ -196,7 +213,7 @@ async def main():
     
     # Start the bot
     print("\n" + "="*50)
-    print("Bot is running! Using Gemini API v1")
+    print("Bot is running! Using Gemini API v1beta")
     print("="*50 + "\n")
     
     # Initialize and run the application
