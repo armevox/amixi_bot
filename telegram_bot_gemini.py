@@ -1,6 +1,6 @@
 import os
 import asyncio
-from google import genai
+import aiohttp
 from aiohttp import web
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
@@ -8,9 +8,6 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 # Configuration
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN_HERE")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE")
-
-# Initialize the Google GenAI Client
-client = genai.Client(api_key=GEMINI_API_KEY)
 
 # Character configuration
 CHARACTER_NAME = "Amixi"
@@ -49,11 +46,8 @@ who wanted to make futuristic AI assistance available to people today."""
 # Store conversation history for each user
 user_conversations = {}
 
-# Function to call the Gemini API with google.genai client
+# Function to call the Gemini API using v1 REST API directly
 async def call_gemini_api(message: str, conversation_history: list = None):
-    # Use Gemini 1.5 Flash model and API v1
-    model = "gemini-1.5-flash"  # Updated model name
-    
     # Build the conversation context
     if conversation_history is None:
         conversation_history = []
@@ -64,18 +58,28 @@ async def call_gemini_api(message: str, conversation_history: list = None):
         full_prompt += msg + "\n"
     full_prompt += f"User: {message}\nAmixi:"
     
-    try:
-        # Request content using the new genai client
-        response = client.models.generate_content(
-            model=model,
-            contents=full_prompt
-        )
-        
-        # Return the generated response text
-        return response.text
+    # Using v1 API endpoint (stable version)
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
     
+    payload = {
+        "contents": [{
+            "parts": [{
+                "text": full_prompt
+            }]
+        }]
+    }
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return data['candidates'][0]['content']['parts'][0]['text']
+                else:
+                    error_text = await response.text()
+                    return f"⚠️ API Error {response.status}: {error_text}"
     except Exception as e:
-        return f"⚠️ Oops! I encountered a system error. My circuits are a bit scrambled right now. Technical details: {str(e)}"
+        return f"⚠️ Connection error: {str(e)}"
 
 # Command to start the conversation
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -101,7 +105,7 @@ async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "It's like we just met for the first time. How can I assist you today?"
     )
 
-# Handle incoming messages and generate responses using Gemini 2.5 Pro
+# Handle incoming messages and generate responses
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle regular messages and generate character responses"""
     user_id = update.effective_user.id
@@ -138,6 +142,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def main():
     """Start the bot"""
     print(f"Starting {CHARACTER_NAME} bot...")
+    print("Testing Gemini API v1 connection...")
+    
+    # Test API connection
+    try:
+        test_response = await call_gemini_api("Say 'API connection successful!'")
+        print(f"✓ Gemini API v1 working!")
+        print(f"✓ Test response: {test_response[:50]}...")
+    except Exception as e:
+        print(f"⚠️ Warning: Gemini API test failed: {e}")
     
     # Create a simple web server for health check
     async def health_check(request):
@@ -168,7 +181,7 @@ async def main():
     
     # Start the bot
     print("\n" + "="*50)
-    print("Bot is running! Press Ctrl+C to stop.")
+    print("Bot is running! Using Gemini API v1")
     print("="*50 + "\n")
     
     # Initialize and run the application
