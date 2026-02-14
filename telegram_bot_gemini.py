@@ -1,16 +1,16 @@
-import os
+    import os
 import asyncio
-import openai  # OpenAI's new API library
+from google import genai
 from aiohttp import web
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # Configuration
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN_HERE")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "YOUR_OPENAI_API_KEY_HERE")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE")
 
-# Initialize OpenAI with your API key
-openai.api_key = OPENAI_API_KEY
+# Initialize the Google GenAI Client
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 # Character configuration
 CHARACTER_NAME = "Amixi"
@@ -49,22 +49,33 @@ who wanted to make futuristic AI assistance available to people today."""
 # Store conversation history for each user
 user_conversations = {}
 
-# Function to generate text using GPT-3.5 or GPT-4 with the new API structure
-def generate_text(prompt):
+# Function to call the Gemini API with google.genai client
+async def call_gemini_api(message: str, conversation_history: list = None):
+    # Use Gemini 1.5 Flash model and API v1
+    model = "gemini-1.5-flash"  # Updated model name
+    
+    # Build the conversation context
+    if conversation_history is None:
+        conversation_history = []
+    
+    # Full prompt
+    full_prompt = CHARACTER_DESCRIPTION + "\n\nConversation:\n"
+    for msg in conversation_history:
+        full_prompt += msg + "\n"
+    full_prompt += f"User: {message}\nAmixi:"
+    
     try:
-        # Requesting the model to generate a response using the new OpenAI API v1.0.0+ interface
-        response = openai.completions.create(
-            model="gpt-3.5-turbo",  # Use GPT-3.5 or GPT-4 depending on your choice
-            prompt=prompt,
-            max_tokens=50,  # Limit the response to 50 tokens to keep it short
-            temperature=0.5,  # Make it less random to maintain relevance
-            n=1,  # Number of completions to generate
+        # Request content using the new genai client
+        response = client.models.generate_content(
+            model=model,
+            contents=full_prompt
         )
         
-        return response['choices'][0]['text'].strip()
+        # Return the generated response text
+        return response.text
     
     except Exception as e:
-        return f"⚠️ Error: {str(e)}"
+        return f"⚠️ Oops! I encountered a system error. My circuits are a bit scrambled right now. Technical details: {str(e)}"
 
 # Command to start the conversation
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -90,7 +101,7 @@ async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "It's like we just met for the first time. How can I assist you today?"
     )
 
-# Function to handle regular messages and generate responses using OpenAI GPT-3.5
+# Handle incoming messages and generate responses using Gemini 2.5 Pro
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle regular messages and generate character responses"""
     user_id = update.effective_user.id
@@ -104,17 +115,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.chat.send_action(action="typing")
     
     try:
-        # Combine user input with the AI's behavior description
-        prompt = f"{CHARACTER_DESCRIPTION}\nUser: {user_message}\nAmixi:"
-
-        # Get the generated response using OpenAI GPT-3.5 (with the new API structure)
-        response = generate_text(prompt)
+        # Call Gemini API to get the response
+        response = await call_gemini_api(user_message, user_conversations[user_id])
         
         # Update conversation history
         user_conversations[user_id].append(f"User: {user_message}")
         user_conversations[user_id].append(f"Amixi: {response}")
         
-        # Keep only the last 10 exchanges (20 messages)
+        # Keep only last 10 exchanges (20 messages)
         if len(user_conversations[user_id]) > 20:
             user_conversations[user_id] = user_conversations[user_id][-20:]
         
@@ -189,4 +197,4 @@ if __name__ == "__main__":
             asyncio.set_event_loop(loop)
             loop.run_until_complete(main())
         else:
-            raise 
+            raise
