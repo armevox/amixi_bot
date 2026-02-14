@@ -58,12 +58,13 @@ async def call_gemini_api(message: str, conversation_history: list = None):
         full_prompt += msg + "\n"
     full_prompt += f"User: {message}\nAmixi:"
     
-    # Try different model names with v1 API
+    # Try different model names with v1beta API (has better model support)
     models_to_try = [
-        "gemini-2.0-flash-exp",
-        "gemini-1.5-pro",  
+        "gemini-1.5-flash-latest",
         "gemini-1.5-flash",
-        "gemini-2.0-pro"
+        "gemini-1.5-pro-latest",
+        "gemini-1.5-pro",
+        "gemini-pro"
     ]
     
     payload = {
@@ -77,7 +78,8 @@ async def call_gemini_api(message: str, conversation_history: list = None):
     # Try each model until one works
     for model in models_to_try:
         try:
-            url = f"https://generativelanguage.googleapis.com/v1/models/{model}:generateContent?key={GEMINI_API_KEY}"
+            # Using v1beta instead of v1
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
             
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, json=payload) as response:
