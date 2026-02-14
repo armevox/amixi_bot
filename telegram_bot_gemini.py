@@ -58,8 +58,13 @@ async def call_gemini_api(message: str, conversation_history: list = None):
         full_prompt += msg + "\n"
     full_prompt += f"User: {message}\nAmixi:"
     
-    # Using v1 API endpoint (stable version)
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    # Try different model names with v1 API
+    models_to_try = [
+        "gemini-2.0-flash-exp",
+        "gemini-1.5-pro",  
+        "gemini-1.5-flash",
+        "gemini-2.0-pro"
+    ]
     
     payload = {
         "contents": [{
@@ -69,17 +74,25 @@ async def call_gemini_api(message: str, conversation_history: list = None):
         }]
     }
     
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=payload) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data['candidates'][0]['content']['parts'][0]['text']
-                else:
-                    error_text = await response.text()
-                    return f"⚠️ API Error {response.status}: {error_text}"
-    except Exception as e:
-        return f"⚠️ Connection error: {str(e)}"
+    # Try each model until one works
+    for model in models_to_try:
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1/models/{model}:generateContent?key={GEMINI_API_KEY}"
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return data['candidates'][0]['content']['parts'][0]['text']
+                    elif response.status == 404:
+                        # Model not found, try next one
+                        continue
+        except Exception:
+            # Try next model
+            continue
+    
+    # If all models failed
+    return "⚠️ Could not connect to any Gemini model. Please check your API key."
 
 # Command to start the conversation
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
